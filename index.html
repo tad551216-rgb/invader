@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#FBF7EE">
 <title>方眼インベーダー｜つくる手帖</title>
+<!-- PWA -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+<!-- iOS（beforeinstallprompt非対応のため共有→ホーム画面に追加で利用） -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="方眼インベーダー">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
   :root{
     --paper:#FBF7EE;        /* クリーム地 */
@@ -147,6 +157,7 @@
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
       <div class="lives" id="lives" aria-label="残機"></div>
+      <button class="icon-btn" id="installBtn" title="ホーム画面に追加" style="display:none;">⤓</button>
       <button class="icon-btn" id="muteBtn" title="音の切り替え">♪</button>
       <button class="icon-btn" id="pauseBtn" title="一時停止">⏸</button>
     </div>
@@ -695,6 +706,35 @@ function init(){
 // レイアウト確定後にサイズ取得
 window.addEventListener('load', init);
 setTimeout(()=>{ if(!cv.width) init(); }, 50);
+})();
+</script>
+<script>
+/* ---- Service Worker 登録（相対パス：プロジェクトページでも動く）---- */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+
+/* ---- ホーム画面に追加（Android / デスクトップChrome）---- */
+(() => {
+  let deferred = null;
+  const btn = document.getElementById('installBtn');
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferred = e;
+    if (btn) btn.style.display = '';
+  });
+  if (btn) btn.addEventListener('click', async () => {
+    if (!deferred) return;
+    deferred.prompt();
+    await deferred.userChoice;
+    deferred = null;
+    btn.style.display = 'none';
+  });
+  window.addEventListener('appinstalled', () => {
+    if (btn) btn.style.display = 'none';
+  });
 })();
 </script>
 </body>
