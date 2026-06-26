@@ -80,6 +80,7 @@
     box-shadow:3px 4px 0 rgba(39,64,107,.12);
     overflow:hidden;
     aspect-ratio:3/4;
+    flex-shrink:0;          /* 短い画面でも縦に潰さない（潰れると下の要塞が隠れるため） */
   }
   canvas{display:block;width:100%;height:100%;image-rendering:auto;}
 
@@ -209,17 +210,22 @@ const el = {
 
 // ---- 論理解像度（内部座標）----
 const W = 240, H = 320;
-let scale = 1, dpr = 1;
+let scale = 1, dpr = 1, offX = 0, offY = 0;
 function resize(){
   const rect = cv.getBoundingClientRect();
+  if(rect.width===0 || rect.height===0) return;
   dpr = Math.min(window.devicePixelRatio||1, 2);
   cv.width  = Math.round(rect.width  * dpr);
   cv.height = Math.round(rect.height * dpr);
-  scale = cv.width / W;           // 幅基準でスケール（縦横比は CSS の 3/4 で固定）
-  ctx.setTransform(scale,0,0,scale,0,0);
+  // 論理 W×H 全体を canvas に収める（レターボックス）。これで下端の要塞・自機が切れない
+  scale = Math.min(cv.width / W, cv.height / H);
+  offX = (cv.width  - W*scale) / 2;
+  offY = (cv.height - H*scale) / 2;
+  ctx.setTransform(scale,0,0,scale, offX, offY);
   ctx.imageSmoothingEnabled = false;
 }
 window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', ()=>setTimeout(resize,80));
 
 // ---- 色 ----
 const C = {
@@ -626,7 +632,10 @@ function bunkerHit(b, fromPlayer){
 
 // ---- 描画 ----
 function draw(){
-  ctx.clearRect(0,0,W,H);
+  // レターボックスの帯も含めて全面クリア（残像防止）
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.setTransform(scale,0,0,scale, offX, offY);
 
   // 紙の中の薄い罫線（ステージ内にも方眼）
   ctx.strokeStyle='rgba(58,92,140,0.10)';
@@ -701,6 +710,10 @@ function init(){
   resize();
   updateHUD();
   el.mute.textContent = Audio_.on?'♪':'♪̸';
+  // ステージのサイズ変化（アドレスバーの出入り・全画面切替・回転）を監視して追従
+  if(window.ResizeObserver){
+    new ResizeObserver(()=>resize()).observe(cv);
+  }
   requestAnimationFrame(loop);
 }
 // レイアウト確定後にサイズ取得

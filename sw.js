@@ -1,6 +1,6 @@
 /* 方眼インベーダー｜つくる手帖 Service Worker */
 /* バージョンを上げるとキャッシュが入れ替わります（更新時はここを変える） */
-const VERSION = 'inv-v1.0.0';
+const VERSION = 'inv-v1.0.1';
 const CACHE = `tsukuru-invader-${VERSION}`;
 
 /* sw.js の場所を基準にした相対パス（プロジェクトページのサブディレクトリでも動く） */
