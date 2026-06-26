@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#FBF7EE">
+<title>方眼インベーダー｜つくる手帖</title>
+<style>
+  :root{
+    --paper:#FBF7EE;        /* クリーム地 */
+    --grid:#D7DEE8;         /* 方眼の罫線（淡い藍） */
+    --grid2:#C2CDDC;        /* 太罫 */
+    --ink:#27406B;          /* 藍インク */
+    --ink-soft:#5B6E8C;
+    --vermil:#D9483B;       /* 朱 */
+    --vermil-soft:#E7705F;
+    --paper-edge:#EFE8D8;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    font-family:"Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic UI",system-ui,sans-serif;
+    color:var(--ink);
+    background:var(--paper);
+    /* 方眼紙 */
+    background-image:
+      linear-gradient(var(--grid) 1px,transparent 1px),
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:22px 22px;
+    display:flex;flex-direction:column;align-items:center;
+    min-height:100%;
+    overscroll-behavior:none;
+    -webkit-user-select:none;user-select:none;
+    touch-action:manipulation;
+  }
+  .sheet{
+    width:100%;max-width:460px;
+    padding:14px 14px 22px;
+    display:flex;flex-direction:column;gap:12px;
+    min-height:100dvh;
+  }
+  header.brand{
+    display:flex;align-items:baseline;gap:10px;
+    border-bottom:2px solid var(--ink);
+    padding-bottom:8px;
+  }
+  .brand .logo{
+    font-weight:800;letter-spacing:.04em;font-size:18px;
+  }
+  .brand .logo .dot{color:var(--vermil);}
+  .brand .sub{font-size:12px;color:var(--ink-soft);letter-spacing:.08em;}
+
+  /* HUD */
+  .hud{
+    display:flex;justify-content:space-between;align-items:center;
+    font-variant-numeric:tabular-nums;
+  }
+  .hud .stat{display:flex;flex-direction:column;line-height:1.1;}
+  .hud .stat .label{font-size:10px;letter-spacing:.14em;color:var(--ink-soft);}
+  .hud .stat .val{font-size:20px;font-weight:800;}
+  .hud .lives{display:flex;gap:5px;align-items:center;min-height:20px;}
+  .hud .lives .li{width:18px;height:14px;}
+
+  /* 画面（方眼ノートの1ページ枠） */
+  .stage{
+    position:relative;width:100%;
+    border:2px solid var(--ink);
+    border-radius:8px;
+    background:rgba(251,247,238,.55);
+    box-shadow:3px 4px 0 rgba(39,64,107,.12);
+    overflow:hidden;
+    aspect-ratio:3/4;
+  }
+  canvas{display:block;width:100%;height:100%;image-rendering:auto;}
+
+  /* オーバーレイ */
+  .overlay{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:14px;
+    background:rgba(251,247,238,.82);
+    backdrop-filter:blur(1px);
+    text-align:center;padding:20px;
+  }
+  .overlay.hide{display:none;}
+  .overlay h1{margin:0;font-size:26px;letter-spacing:.04em;}
+  .overlay h1 .v{color:var(--vermil);}
+  .overlay p{margin:0;font-size:13px;line-height:1.7;color:var(--ink-soft);max-width:300px;}
+  .overlay .big{font-size:18px;color:var(--ink);font-weight:700;}
+
+  .btn{
+    appearance:none;border:2px solid var(--ink);background:var(--paper);
+    color:var(--ink);font:inherit;font-weight:800;font-size:16px;
+    padding:11px 26px;border-radius:999px;cursor:pointer;
+    box-shadow:2px 3px 0 rgba(39,64,107,.18);
+    transition:transform .05s ease, box-shadow .05s ease;
+  }
+  .btn.primary{background:var(--vermil);border-color:var(--vermil);color:#fff;
+    box-shadow:2px 3px 0 rgba(217,72,59,.30);}
+  .btn:active{transform:translate(2px,3px);box-shadow:none;}
+
+  /* 操作系 */
+  .toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .icon-btn{
+    appearance:none;border:2px solid var(--ink);background:var(--paper);
+    color:var(--ink);width:42px;height:42px;border-radius:10px;
+    font-size:18px;display:grid;place-items:center;cursor:pointer;
+    box-shadow:2px 3px 0 rgba(39,64,107,.15);
+  }
+  .icon-btn:active{transform:translate(2px,3px);box-shadow:none;}
+  .icon-btn.off{color:var(--ink-soft);opacity:.55;}
+
+  .pad{
+    display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:10px;
+    margin-top:2px;
+  }
+  .pad .ctrl{
+    appearance:none;border:2px solid var(--ink);background:var(--paper);
+    color:var(--ink);font:inherit;font-weight:800;font-size:18px;
+    height:64px;border-radius:14px;display:grid;place-items:center;
+    box-shadow:2px 4px 0 rgba(39,64,107,.16);cursor:pointer;
+    touch-action:none;
+  }
+  .pad .ctrl.fire{background:var(--vermil);border-color:var(--vermil);color:#fff;
+    box-shadow:2px 4px 0 rgba(217,72,59,.28);}
+  .pad .ctrl.pressed{transform:translate(2px,4px);box-shadow:none;filter:brightness(.97);}
+  .pad .ctrl small{font-size:10px;letter-spacing:.1em;display:block;margin-top:2px;font-weight:600;opacity:.8;}
+
+  .hint{font-size:11px;color:var(--ink-soft);text-align:center;letter-spacing:.04em;}
+  @media (hover:hover) and (pointer:fine){
+    .pad{opacity:.9;}
+  }
+  .footer{margin-top:auto;padding-top:6px;text-align:center;font-size:10px;color:var(--ink-soft);letter-spacing:.1em;}
+</style>
+</head>
+<body>
+<div class="sheet">
+  <header class="brand">
+    <div class="logo">つくる<span class="dot">手帖</span></div>
+    <div class="sub">方眼インベーダー</div>
+  </header>
+
+  <div class="toolbar">
+    <div class="hud" style="flex:1;gap:18px;display:flex;">
+      <div class="stat"><span class="label">SCORE</span><span class="val" id="score">0</span></div>
+      <div class="stat"><span class="label">HI</span><span class="val" id="hi">0</span></div>
+      <div class="stat"><span class="label">WAVE</span><span class="val" id="wave">1</span></div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <div class="lives" id="lives" aria-label="残機"></div>
+      <button class="icon-btn" id="muteBtn" title="音の切り替え">♪</button>
+      <button class="icon-btn" id="pauseBtn" title="一時停止">⏸</button>
+    </div>
+  </div>
+
+  <div class="stage">
+    <canvas id="cv"></canvas>
+    <div class="overlay" id="overlay">
+      <h1>方眼<span class="v">インベーダー</span></h1>
+      <p>方眼ノートに描いた落書きを撃ち落とそう。<br>下まで降りてこられたらゲームオーバー。</p>
+      <p class="hint">操作：←→で移動／スペースで発射<br>（スマホは下のボタン）</p>
+      <button class="btn primary" id="startBtn">スタート</button>
+    </div>
+  </div>
+
+  <div class="pad">
+    <button class="ctrl" id="leftBtn">◀<small>ひだり</small></button>
+    <button class="ctrl" id="rightBtn">▶<small>みぎ</small></button>
+    <button class="ctrl fire" id="fireBtn">撃つ<small>FIRE</small></button>
+  </div>
+  <div class="hint">PC：←→キーで移動・スペースで発射・Pで一時停止</div>
+
+  <div class="footer">つくる手帖 ／ 方眼紙でつくるあそび</div>
+</div>
+
+<script>
+(()=>{
+"use strict";
+
+// ---- セーフなローカル保存（GitHub Pages では保存／プレビューでは握りつぶす）----
+const store = {
+  get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+  set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+};
+
+// ---- 要素 ----
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const el = {
+  score:document.getElementById('score'),
+  hi:document.getElementById('hi'),
+  wave:document.getElementById('wave'),
+  lives:document.getElementById('lives'),
+  overlay:document.getElementById('overlay'),
+  start:document.getElementById('startBtn'),
+  mute:document.getElementById('muteBtn'),
+  pause:document.getElementById('pauseBtn'),
+};
+
+// ---- 論理解像度（内部座標）----
+const W = 240, H = 320;
+let scale = 1, dpr = 1;
+function resize(){
+  const rect = cv.getBoundingClientRect();
+  dpr = Math.min(window.devicePixelRatio||1, 2);
+  cv.width  = Math.round(rect.width  * dpr);
+  cv.height = Math.round(rect.height * dpr);
+  scale = cv.width / W;           // 幅基準でスケール（縦横比は CSS の 3/4 で固定）
+  ctx.setTransform(scale,0,0,scale,0,0);
+  ctx.imageSmoothingEnabled = false;
+}
+window.addEventListener('resize', resize);
+
+// ---- 色 ----
+const C = {
+  ink:'#27406B', inkSoft:'#5B6E8C', vermil:'#D9483B', vermilSoft:'#E7705F',
+  paper:'#FBF7EE', grid:'#D7DEE8', shield:'#3A5C8C'
+};
+
+// ---- スプライト（方眼に描いた落書き風／1=塗り）----
+const S = {
+  // タイプA：イカ（高得点）8x8
+  a:[
+    "00011000\n00111100\n01111110\n11011011\n11111111\n00100100\n01011010\n10100101",
+    "00011000\n00111100\n01111110\n11011011\n11111111\n01011010\n10000001\n01000010"
+  ],
+  // タイプB：カニ 11x8
+  b:[
+    "00100000100\n00010001000\n00111111100\n01101110110\n11111111111\n10111111101\n10100000101\n00011011000",
+    "00100000100\n10010001001\n10111111101\n11101110111\n11111111111\n01111111110\n00100000100\n01000000010"
+  ],
+  // タイプC：タコ 12x8
+  c:[
+    "000111111000\n011111111110\n111111111111\n111001001111\n111111111111\n000110110000\n001100001100\n011000000110",
+    "000111111000\n011111111110\n111111111111\n111001001111\n111111111111\n001101101100\n011000000110\n001100001100"
+  ],
+  // 自機：紙ロケット 13x8
+  ship:[
+    "0000001000000\n0000011100000\n0000011100000\n0001111111000\n0011111111100\n0111111111110\n1111111111111\n1101111111011"
+  ],
+  // 紙ヒコーキ（ボーナス）16x7
+  ufo:[
+    "0000000010000000\n0000000111000000\n0000011111100000\n0011111111111100\n1111111111111110\n0001111111100000\n0000011100000000"
+  ]
+};
+function parse(str){ return str.split("\n").map(r=>r.split("").map(n=>+n)); }
+const SPR = {
+  a:S.a.map(parse), b:S.b.map(parse), c:S.c.map(parse),
+  ship:S.ship.map(parse), ufo:S.ufo.map(parse)
+};
+function spriteW(g){ return g[0].length; }
+function spriteH(g){ return g.length; }
+
+// グリッドを「丸ピクセル」で描く＝手描きインク風
+function drawSprite(grid, x, y, cell, color, round=true){
+  ctx.fillStyle = color;
+  const r = round ? cell*0.45 : 0;
+  for(let j=0;j<grid.length;j++){
+    for(let i=0;i<grid[j].length;i++){
+      if(grid[j][i]){
+        const px=x+i*cell, py=y+j*cell;
+        if(round){
+          ctx.beginPath();
+          ctx.roundRect(px+cell*0.05, py+cell*0.05, cell*0.9, cell*0.9, r);
+          ctx.fill();
+        }else{
+          ctx.fillRect(px,py,cell,cell);
+        }
+      }
+    }
+  }
+}
+
+// ---- オーディオ（小さなビープ）----
+const Audio_ = {
+  ctx:null, on: store.get('inv_mute')!=='1',
+  ensure(){ if(!this.ctx){ try{ this.ctx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(this.ctx && this.ctx.state==='suspended') this.ctx.resume(); },
+  beep(freq, dur=0.08, type='square', vol=0.06){
+    if(!this.on || !this.ctx) return;
+    const t=this.ctx.currentTime;
+    const o=this.ctx.createOscillator(), g=this.ctx.createGain();
+    o.type=type; o.frequency.value=freq;
+    g.gain.setValueAtTime(vol,t);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g).connect(this.ctx.destination);
+    o.start(t); o.stop(t+dur);
+  },
+  shoot(){ this.beep(660,0.07,'square',0.05); },
+  hit(){ this.beep(180,0.12,'sawtooth',0.07); },
+  playerHit(){ this.beep(90,0.4,'triangle',0.10); },
+  step(i){ this.beep([110,98,82,73][i%4],0.06,'square',0.05); },
+  bonus(){ this.beep(880,0.06,'square',0.06); setTimeout(()=>this.beep(1180,0.08,'square',0.06),70); }
+};
+
+// ---- ゲーム状態 ----
+const G = {
+  state:'title',    // title | play | pause | dead | clear | over
+  score:0, hi:+ (store.get('inv_hi')||0), wave:1, lives:3,
+  player:{x:W/2-7, y:H-30, w:13, h:8, speed:1.6, cooldown:0, invuln:0},
+  pBullet:null,                 // 自機弾は1発（クラシック）
+  eBullets:[],
+  invaders:[], invDir:1, invStepTimer:0, invStepInterval:34, invAnim:0, invStepIdx:0,
+  bunkers:[],
+  ufo:null, ufoTimer:600,
+  keys:{left:false,right:false,fire:false},
+  flash:0, msgTimer:0,
+};
+
+// ---- 編隊生成 ----
+const COLS=8, ROWS=5, CELL=2;          // CELL=各スプライトの1マスの大きさ
+const INV_W = 11*CELL;                  // 列ピッチ基準（最大幅カニに合わせる）
+const GAP_X = 6, GAP_Y = 5;
+function rowType(r){ return r===0?'a':(r<=2?'b':'c'); }
+function rowPoints(r){ return r===0?30:(r<=2?20:10); }
+
+function buildWave(){
+  G.invaders=[];
+  const startX = 16, startY = 36 + (G.wave-1)*6;
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const type=rowType(r);
+      const g=SPR[type][0];
+      G.invaders.push({
+        col:c,row:r,type,alive:true,
+        w:spriteW(g)*CELL, h:spriteH(g)*CELL,
+        x:startX + c*(INV_W+GAP_X),
+        y:startY + r*(8*CELL+GAP_Y),
+        pts:rowPoints(r)
+      });
+    }
+  }
+  G.invDir=1; G.invStepIdx=0;
+  G.invStepInterval = Math.max(8, 34 - (G.wave-1)*3);
+  G.invStepTimer=0;
+  G.eBullets=[];
+  G.player.x = W/2-7;
+}
+
+// ---- バンカー（消しゴムのかけら風シールド）----
+function buildBunkers(){
+  G.bunkers=[];
+  const count=4, bw=30, bh=18, top=H-58;
+  const gap=(W - count*bw)/(count+1);
+  for(let b=0;b<count;b++){
+    const bx=gap + b*(bw+gap);
+    const cells=[];
+    const cols=Math.floor(bw/3), rows=Math.floor(bh/3);
+    for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){
+      // 下中央をくり抜いてアーチ状に
+      const inArch = (j>rows*0.55) && Math.abs(i-cols/2) < cols*0.22;
+      if(!inArch) cells.push({i,j,hp:1});
+    }
+    G.bunkers.push({x:bx,y:top,cols,rows,cell:3,cells});
+  }
+}
+
+// ---- 入力 ----
+function setKey(k,v){ G.keys[k]=v; }
+addEventListener('keydown',e=>{
+  if(e.repeat) return;
+  if(e.key==='ArrowLeft'||e.key==='a') setKey('left',true);
+  else if(e.key==='ArrowRight'||e.key==='d') setKey('right',true);
+  else if(e.key===' '){ setKey('fire',true); e.preventDefault(); }
+  else if(e.key==='p'||e.key==='P') togglePause();
+  else if(e.key==='Enter' && (G.state==='title'||G.state==='over')) startGame();
+});
+addEventListener('keyup',e=>{
+  if(e.key==='ArrowLeft'||e.key==='a') setKey('left',false);
+  else if(e.key==='ArrowRight'||e.key==='d') setKey('right',false);
+  else if(e.key===' ') setKey('fire',false);
+});
+
+// タッチ／ポインタ（ボタンを押している間 true）
+function bindHold(id, key){
+  const b=document.getElementById(id);
+  const on =e=>{ e.preventDefault(); b.classList.add('pressed'); setKey(key,true); Audio_.ensure(); };
+  const off=e=>{ e.preventDefault(); b.classList.remove('pressed'); setKey(key,false); };
+  b.addEventListener('pointerdown',on);
+  b.addEventListener('pointerup',off);
+  b.addEventListener('pointercancel',off);
+  b.addEventListener('pointerleave',off);
+}
+bindHold('leftBtn','left');
+bindHold('rightBtn','right');
+bindHold('fireBtn','fire');
+
+el.start.addEventListener('click', startGame);
+el.pause.addEventListener('click', togglePause);
+el.mute.addEventListener('click', ()=>{
+  Audio_.on=!Audio_.on; store.set('inv_mute', Audio_.on?'0':'1');
+  el.mute.classList.toggle('off', !Audio_.on);
+  el.mute.textContent = Audio_.on?'♪':'♪̸';
+  Audio_.ensure();
+});
+el.mute.classList.toggle('off', !Audio_.on);
+
+// ---- ゲーム制御 ----
+function startGame(){
+  Audio_.ensure();
+  G.score=0; G.wave=1; G.lives=3;
+  G.player.invuln=0; G.pBullet=null;
+  buildWave(); buildBunkers();
+  G.state='play';
+  hideOverlay();
+  updateHUD();
+}
+function nextWave(){
+  G.wave++; buildWave(); buildBunkers();
+  G.player.invuln=60;
+  G.state='play'; hideOverlay(); updateHUD();
+}
+function togglePause(){
+  if(G.state==='play'){ G.state='pause'; showOverlay('一時停止','つづける',()=>{G.state='play';hideOverlay();}); }
+  else if(G.state==='pause'){ G.state='play'; hideOverlay(); }
+}
+function loseLife(){
+  G.lives--; updateHUD(); Audio_.playerHit(); G.flash=12;
+  if(G.lives<=0){ gameOver(); }
+  else { G.player.invuln=90; G.player.x=W/2-7; G.eBullets=[]; }
+}
+function gameOver(){
+  G.state='over';
+  if(G.score>G.hi){ G.hi=G.score; store.set('inv_hi',G.hi); updateHUD(); }
+  showOverlay('ゲームオーバー','もう一度', startGame,
+    `スコア <span class="big">${G.score}</span><br>ウェーブ ${G.wave} まで到達`);
+}
+
+// ---- オーバーレイ ----
+function showOverlay(title, btnLabel, onClick, html){
+  const o=el.overlay;
+  o.innerHTML='';
+  const h=document.createElement('h1');
+  h.innerHTML = title.replace(/(インベーダー|オーバー|クリア)/, '<span class="v">$1</span>');
+  o.appendChild(h);
+  if(html){ const p=document.createElement('p'); p.innerHTML=html; o.appendChild(p); }
+  const b=document.createElement('button'); b.className='btn primary'; b.textContent=btnLabel;
+  b.addEventListener('click', onClick);
+  o.appendChild(b);
+  o.classList.remove('hide');
+}
+function hideOverlay(){ el.overlay.classList.add('hide'); }
+
+function updateHUD(){
+  el.score.textContent=G.score;
+  el.hi.textContent=G.hi;
+  el.wave.textContent=G.wave;
+  // 残機をミニ自機で
+  el.lives.innerHTML='';
+  for(let i=0;i<G.lives;i++){
+    const c=document.createElement('canvas');
+    c.width=18;c.height=14;c.className='li';
+    const x=c.getContext('2d');
+    x.fillStyle=C.vermil;
+    const g=SPR.ship[0];
+    const cw=18/spriteW(g);
+    for(let j=0;j<g.length;j++)for(let i2=0;i2<g[j].length;i2++) if(g[j][i2]) x.fillRect(i2*cw,j*cw,cw,cw);
+    el.lives.appendChild(c);
+  }
+}
+
+// ---- 更新 ----
+function update(){
+  if(G.state!=='play') return;
+  const p=G.player;
+
+  // 自機移動
+  if(G.keys.left)  p.x-=p.speed;
+  if(G.keys.right) p.x+=p.speed;
+  p.x=Math.max(4, Math.min(W-p.w-4, p.x));
+  if(p.invuln>0) p.invuln--;
+  if(p.cooldown>0) p.cooldown--;
+
+  // 発射（同時1発）
+  if(G.keys.fire && !G.pBullet && p.cooldown<=0){
+    G.pBullet={x:p.x+p.w/2-1, y:p.y-4, w:2, h:7, vy:-4.2};
+    p.cooldown=10; Audio_.shoot();
+  }
+  if(G.pBullet){
+    G.pBullet.y+=G.pBullet.vy;
+    if(G.pBullet.y< -8) G.pBullet=null;
+  }
+
+  // 編隊ステップ移動（クラシックな段階移動・残数で加速）
+  const alive=G.invaders.filter(v=>v.alive);
+  const ratio = alive.length/(COLS*ROWS);
+  const interval = Math.max(4, Math.round(G.invStepInterval * (0.25+ratio*0.85)));
+  G.invStepTimer++;
+  if(G.invStepTimer>=interval){
+    G.invStepTimer=0;
+    stepInvaders(alive);
+  }
+
+  // インベーダー発砲
+  if(alive.length){
+    const fireChance = 0.02 + G.wave*0.004;
+    if(Math.random()<fireChance){
+      // 各列の最前（最下）から発射
+      const bottoms={};
+      for(const v of alive){ if(!bottoms[v.col]||v.y>bottoms[v.col].y) bottoms[v.col]=v; }
+      const arr=Object.values(bottoms);
+      const v=arr[(Math.random()*arr.length)|0];
+      G.eBullets.push({x:v.x+v.w/2, y:v.y+v.h, w:2, h:7, vy:1.4+G.wave*0.12, t:0});
+    }
+  }
+  for(const b of G.eBullets){ b.y+=b.vy; b.t++; }
+  G.eBullets=G.eBullets.filter(b=>b.y<H+8);
+
+  // 紙ヒコーキ（ボーナス）
+  G.ufoTimer--;
+  if(!G.ufo && G.ufoTimer<=0 && alive.length>2){
+    const dir=Math.random()<0.5?1:-1;
+    G.ufo={x:dir>0?-18:W+18, y:24, w:16*1.4, dir, vx:dir*0.8};
+    G.ufoTimer=500+Math.random()*400;
+  }
+  if(G.ufo){
+    G.ufo.x+=G.ufo.vx;
+    if((G.ufo.dir>0 && G.ufo.x>W+20)||(G.ufo.dir<0 && G.ufo.x< -20)) G.ufo=null;
+  }
+
+  handleCollisions(alive);
+
+  // クリア判定
+  if(alive.length===0 && G.state==='play'){
+    G.state='clear';
+    showOverlay('ウェーブ クリア','つぎへ', nextWave,
+      `ウェーブ ${G.wave} 突破！<br>スコア <span class="big">${G.score}</span>`);
+  }
+
+  if(G.flash>0) G.flash--;
+}
+
+let stepAudioIdx=0;
+function stepInvaders(alive){
+  // 端に到達したか判定
+  let hitEdge=false;
+  for(const v of alive){
+    const nx=v.x + G.invDir*3;
+    if(nx<4 || nx+v.w>W-4){ hitEdge=true; break; }
+  }
+  if(hitEdge){
+    G.invDir*=-1;
+    for(const v of alive){ v.y+=6; }
+  }else{
+    for(const v of alive){ v.x+=G.invDir*3; }
+  }
+  G.invAnim^=1;
+  Audio_.step(stepAudioIdx++);
+
+  // 自機ラインまで降りたら終了
+  for(const v of alive){
+    if(v.y+v.h >= G.player.y-2){ gameOver(); return; }
+  }
+}
+
+function rectHit(a,b){
+  return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+}
+
+function handleCollisions(alive){
+  // 自機弾 × インベーダー
+  if(G.pBullet){
+    for(const v of alive){
+      if(rectHit(G.pBullet, v)){
+        v.alive=false; G.pBullet=null;
+        G.score+=v.pts; Audio_.hit();
+        if(G.score>G.hi){ G.hi=G.score; }
+        updateHUD();
+        break;
+      }
+    }
+  }
+  // 自機弾 × 紙ヒコーキ
+  if(G.pBullet && G.ufo){
+    const u={x:G.ufo.x, y:G.ufo.y-2, w:G.ufo.w, h:10};
+    if(rectHit(G.pBullet,u)){
+      G.pBullet=null; const bonus=100+((Math.random()*4)|0)*50;
+      G.score+=bonus; G.ufo=null; Audio_.bonus(); G.msgTimer=40; updateHUD();
+    }
+  }
+  // 弾 × バンカー
+  if(G.pBullet && bunkerHit(G.pBullet, true)) G.pBullet=null;
+  for(const b of G.eBullets){ if(bunkerHit(b,false)) b._dead=true; }
+  G.eBullets=G.eBullets.filter(b=>!b._dead);
+
+  // 敵弾 × 自機
+  if(G.player.invuln<=0){
+    const p={x:G.player.x, y:G.player.y, w:G.player.w, h:G.player.h};
+    for(const b of G.eBullets){
+      if(rectHit(b,p)){ b._dead=true; loseLife(); break; }
+    }
+    G.eBullets=G.eBullets.filter(b=>!b._dead);
+  }
+}
+
+// バンカー判定＆削り取り
+function bunkerHit(b, fromPlayer){
+  for(const bk of G.bunkers){
+    if(b.x+b.w < bk.x || b.x > bk.x+bk.cols*bk.cell) continue;
+    if(b.y+b.h < bk.y || b.y > bk.y+bk.rows*bk.cell) continue;
+    for(const c of bk.cells){
+      const cx=bk.x+c.i*bk.cell, cy=bk.y+c.j*bk.cell;
+      if(b.x < cx+bk.cell && b.x+b.w > cx && b.y < cy+bk.cell && b.y+b.h > cy){
+        // 周辺も少し削る
+        const idx=bk.cells.indexOf(c);
+        bk.cells.splice(idx,1);
+        for(let k=bk.cells.length-1;k>=0;k--){
+          const o=bk.cells[k];
+          if(Math.abs(o.i-c.i)<=1 && Math.abs(o.j-c.j)<=1 && Math.random()<0.5) bk.cells.splice(k,1);
+        }
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// ---- 描画 ----
+function draw(){
+  ctx.clearRect(0,0,W,H);
+
+  // 紙の中の薄い罫線（ステージ内にも方眼）
+  ctx.strokeStyle='rgba(58,92,140,0.10)';
+  ctx.lineWidth=0.5;
+  for(let x=0;x<=W;x+=12){ ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke(); }
+  for(let y=0;y<=H;y+=12){ ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke(); }
+  // 左の朱マージン線（ノートっぽさ）
+  ctx.strokeStyle='rgba(217,72,59,0.30)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(14,0);ctx.lineTo(14,H);ctx.stroke();
+
+  if(G.state==='title'){ return; }
+
+  // バンカー
+  ctx.fillStyle=C.shield;
+  for(const bk of G.bunkers){
+    for(const c of bk.cells){
+      ctx.fillRect(bk.x+c.i*bk.cell, bk.y+c.j*bk.cell, bk.cell, bk.cell);
+    }
+  }
+
+  // インベーダー
+  for(const v of G.invaders){
+    if(!v.alive) continue;
+    const g=SPR[v.type][G.invAnim%SPR[v.type].length];
+    drawSprite(g, v.x, v.y, CELL, C.ink);
+  }
+
+  // 紙ヒコーキ
+  if(G.ufo){
+    drawSprite(SPR.ufo[0], G.ufo.x, G.ufo.y-6, 1.4, C.vermilSoft);
+  }
+
+  // 自機（無敵中は点滅）
+  if(!(G.player.invuln>0 && (Math.floor(G.player.invuln/4)%2))){
+    drawSprite(SPR.ship[0], G.player.x, G.player.y, CELL, C.vermil);
+  }
+
+  // 自機弾（朱の鉛筆線）
+  if(G.pBullet){ ctx.fillStyle=C.vermil; ctx.fillRect(G.pBullet.x, G.pBullet.y, G.pBullet.w, G.pBullet.h); }
+
+  // 敵弾（藍のジグザグ）
+  ctx.strokeStyle=C.ink; ctx.lineWidth=1.4;
+  for(const b of G.eBullets){
+    ctx.beginPath();
+    const zig=(Math.floor(b.t/4)%2)?1.6:-1.6;
+    ctx.moveTo(b.x, b.y);
+    ctx.lineTo(b.x+zig, b.y+b.h*0.5);
+    ctx.lineTo(b.x, b.y+b.h);
+    ctx.stroke();
+  }
+
+  // ボーナス表示
+  if(G.msgTimer>0){ G.msgTimer--; ctx.fillStyle=C.vermil; ctx.font='bold 9px sans-serif';
+    ctx.textAlign='center'; ctx.fillText('BONUS!', W/2, 18); ctx.textAlign='left'; }
+
+  // 被弾フラッシュ
+  if(G.flash>0){ ctx.fillStyle=`rgba(217,72,59,${G.flash/40})`; ctx.fillRect(0,0,W,H); }
+}
+
+// ---- メインループ（固定タイムステップ）----
+let last=performance.now(), acc=0; const STEP=1000/60;
+function loop(now){
+  acc += now-last; last=now;
+  let guard=0;
+  while(acc>=STEP && guard<5){ update(); acc-=STEP; guard++; }
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// 初期化
+function init(){
+  resize();
+  updateHUD();
+  el.mute.textContent = Audio_.on?'♪':'♪̸';
+  requestAnimationFrame(loop);
+}
+// レイアウト確定後にサイズ取得
+window.addEventListener('load', init);
+setTimeout(()=>{ if(!cv.width) init(); }, 50);
+})();
+</script>
+</body>
+</html>
