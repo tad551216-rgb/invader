@@ -44,7 +44,8 @@
     touch-action:manipulation;
   }
   .sheet{
-    width:100%;max-width:460px;
+    /* 画面の高さから盤面以外(ヘッダ/HUD/ボタン等)を引き、3:4の画面が収まる幅を求める */
+    width:100%;max-width:min(94vw, calc((100dvh - 260px) * 3 / 4));
     padding:14px 14px 22px;
     display:flex;flex-direction:column;gap:12px;
     min-height:100dvh;
